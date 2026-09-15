@@ -19,22 +19,27 @@
 --   (text + index) for the node currently open, and none that lets you
 --   force-select a specific one. Player reply options are TagQuestion nodes
 --   rendered by the client-side dialogue UI, not surfaced through Osiris.
---   No existing published mod does this either (checked Nexus/GitHub).
 --
---   VoteAnswers.OnDialogOptionsAvailable / VoteAnswers.ApplyWinningLine below
---   are therefore left as the integration points with a fake/manual call
---   site (see the bottom of this file) so the vote/roll/broadcast logic can
---   be exercised, but they are NOT wired to a real game hook yet. Making
---   this mod actually work in dialogue requires one of:
---     a) a client-side UI hook into the reply-list widget (Ext.UI /
---        Ext.Events, if/when bg3se exposes one for that widget), or
---     b) reverse-engineering how the dialogue timeline resolves
---        TagQuestion nodes and finding an Osiris call that can set/veto a
---        specific answer (e.g. by manipulating node availability booleans
---        per player rather than picking after the fact).
---   Ask in the bg3se Discord/GitHub discussions for current guidance before
---   sinking more time into this -- it may require a native bg3se
---   extension (C++) rather than pure Lua.
+--   The confirmed path forward is client-side UI introspection: bg3se does
+--   have a real, documented (if sparsely) Ext.UI namespace -- e.g.
+--   Ext.UI.GetRoot():Find("ContentRoot"):VisualChild(1) is a real, working
+--   call pattern for walking the Noesis visual tree, client-side only.
+--   What is NOT yet confirmed is the specific element name(s)/viewmodel
+--   properties behind the dialogue reply buttons -- that has to be found by
+--   running Client/UIExplore.lua's VoteAnswers.DumpUITree() (or the
+--   "!votedump" console command it registers) while a real multi-option
+--   dialogue is open, and reading the resulting tree dump for the node that
+--   holds the reply text/buttons.
+--
+--   VoteAnswers.OnDialogOptionsAvailable / VoteAnswers.ApplyWinningLine
+--   below are the integration points for whatever that dump turns up: once
+--   the dialogue reply UIObject is identified, a client-side listener on it
+--   should call VoteAnswers.OnDialogOptionsAvailable(...) with the real
+--   line texts, and VoteAnswers.ApplyWinningLine(...) should drive that same
+--   UIObject's selection (or an underlying command binding) to pick the
+--   winning line. Neither is wired to a real game hook yet -- the
+--   vote/roll/broadcast logic itself is unaffected by this and can be
+--   exercised standalone once a UI hook exists.
 
 VoteAnswers = VoteAnswers or {}
 
