@@ -43,11 +43,11 @@ local function RenderVotingPhase()
                 return -- already voted, one pick per player
             end
             state.myChoice = line.index
-            Ext.Net.PostMessageToServer(VoteAnswers.Channels.PlayerVoteCast, Ext.Json.Stringify({
+            VoteAnswers.Channels.PlayerVote:SendToServer({
                 instanceId = state.instanceId,
                 playerUserId = LocalPlayerUserId(),
                 lineIndex = line.index,
-            }))
+            })
         end
     end
     if state.myChoice ~= nil then
@@ -74,9 +74,7 @@ local function RenderResultPhase()
     end)
 end
 
-Ext.RegisterNetListener(VoteAnswers.Channels.DialogOptionsBroadcast, function(_, payload)
-    local data = Ext.Json.Parse(payload)
-
+VoteAnswers.Channels.DialogOptions:SetHandler(function(data)
     state.instanceId = data.instanceId
     state.speakerName = data.speakerName
     state.lines = {}
@@ -91,8 +89,7 @@ Ext.RegisterNetListener(VoteAnswers.Channels.DialogOptionsBroadcast, function(_,
     window.Closeable = false
 end)
 
-Ext.RegisterNetListener(VoteAnswers.Channels.VoteResultBroadcast, function(_, payload)
-    local data = Ext.Json.Parse(payload)
+VoteAnswers.Channels.VoteResult:SetHandler(function(data)
     if data.instanceId ~= state.instanceId then
         return
     end

@@ -10,14 +10,31 @@
 --      by re-roll, exactly like Solasta's shared dialogue checks.
 --   5. The winning line index is fed back into the vanilla dialogue system.
 --
--- IMPORTANT / TODO before first in-game test:
---   The exact Osiris/Ext.Events hook names for "a dialogue node opened with
---   candidate lines" and "force-select dialogue line N" change between BG3
---   patches and BG3SE releases. Verify against the current BG3SE docs
---   (https://github.com/Norbyte/bg3se) and Osiris story events, then wire
+-- KNOWN OPEN PROBLEM (confirmed by research, patch 8 / current bg3se docs):
+--   Osiris only exposes coarse dialogue events -- DialogStarted(dialog,
+--   instanceID), DialogEnded, DialogActorJoined(dialog, instanceID, actor,
+--   speakerIndex), DialogActorLeft, DialogRollResult(character, success,
+--   dialog, isDetectThoughts, criticality). There is NO documented Osiris
+--   event or Lua call that hands you the list of selectable player lines
+--   (text + index) for the node currently open, and none that lets you
+--   force-select a specific one. Player reply options are TagQuestion nodes
+--   rendered by the client-side dialogue UI, not surfaced through Osiris.
+--   No existing published mod does this either (checked Nexus/GitHub).
+--
 --   VoteAnswers.OnDialogOptionsAvailable / VoteAnswers.ApplyWinningLine below
---   to the real event names. The vote/roll/broadcast logic itself does not
---   depend on those specifics and can be reused as-is.
+--   are therefore left as the integration points with a fake/manual call
+--   site (see the bottom of this file) so the vote/roll/broadcast logic can
+--   be exercised, but they are NOT wired to a real game hook yet. Making
+--   this mod actually work in dialogue requires one of:
+--     a) a client-side UI hook into the reply-list widget (Ext.UI /
+--        Ext.Events, if/when bg3se exposes one for that widget), or
+--     b) reverse-engineering how the dialogue timeline resolves
+--        TagQuestion nodes and finding an Osiris call that can set/veto a
+--        specific answer (e.g. by manipulating node availability booleans
+--        per player rather than picking after the fact).
+--   Ask in the bg3se Discord/GitHub discussions for current guidance before
+--   sinking more time into this -- it may require a native bg3se
+--   extension (C++) rather than pure Lua.
 
 VoteAnswers = VoteAnswers or {}
 
@@ -30,13 +47,34 @@ local Config = {
 -- Active vote state, keyed by dialogue instance id.
 local activeVotes = {}
 
-local function GetConnectedPlayerUserIds()
+-- Players currently joined to the open dialogue instance, tracked via the
+-- confirmed Osiris events DialogActorJoined/DialogActorLeft (see the header
+-- comment). instanceId -> { [playerUserId] = true }
+local dialogParticipants = {}
+
+Ext.Osiris.RegisterListener("DialogActorJoined", 4, "after", function(dialog, instanceId, actor, speakerIndex)
+    -- TODO: filter to player-controlled actors only (non-player NPCs also
+    -- join dialogue instances); confirm the right "is this a player
+    -- character" check for the current game version, e.g. Osiris' IsPlayer.
+    dialogParticipants[instanceId] = dialogParticipants[instanceId] or {}
+    dialogParticipants[instanceId][actor] = true
+end)
+
+Ext.Osiris.RegisterListener("DialogActorLeft", 3, "after", function(dialog, instanceId, actor)
+    if dialogParticipants[instanceId] then
+        dialogParticipants[instanceId][actor] = nil
+    end
+end)
+
+Ext.Osiris.RegisterListener("DialogEnded", 2, "after", function(dialog, instanceId)
+    dialogParticipants[instanceId] = nil
+    activeVotes[instanceId] = nil
+end)
+
+local function GetConnectedPlayerUserIds(instanceId)
     local ids = {}
-    for _, player in ipairs(Osiris.DB_IsPlayer:Get(nil)) do
-        -- TODO: replace with the real "list connected player peer/user ids" call,
-        -- e.g. Ext.Entity.GetAllEntitiesWithComponent("ServerCharacter") filtered
-        -- to player-controlled characters, or Osiris' PlayerConnected database.
-        table.insert(ids, player[1])
+    for actor, _ in pairs(dialogParticipants[instanceId] or {}) do
+        table.insert(ids, actor)
     end
     return ids
 end
@@ -50,7 +88,7 @@ function VoteAnswers.OnDialogOptionsAvailable(instanceId, speakerName, lines)
         return -- nothing to vote on
     end
 
-    local playerIds = GetConnectedPlayerUserIds()
+    local playerIds = GetConnectedPlayerUserIds(instanceId)
     if #playerIds < Config.MinPlayersToVote then
         return -- solo play (or only one player present): fall back to vanilla behaviour
     end
@@ -63,12 +101,12 @@ function VoteAnswers.OnDialogOptionsAvailable(instanceId, speakerName, lines)
         startedAt = Ext.Utils.MonotonicTime(),
     }
 
-    Ext.Net.BroadcastMessage(VoteAnswers.Channels.DialogOptionsBroadcast, Ext.Json.Stringify({
+    VoteAnswers.Channels.DialogOptions:Broadcast({
         instanceId = instanceId,
         speakerName = speakerName,
         lines = lines,
         timeoutMs = Config.VoteTimeoutMs,
-    }))
+    })
 
     Ext.Timer.WaitFor(Config.VoteTimeoutMs, function()
         VoteAnswers.ResolveVote(instanceId)
@@ -84,8 +122,7 @@ local function AllVotesIn(vote)
     return true
 end
 
-Ext.RegisterNetListener(VoteAnswers.Channels.PlayerVoteCast, function(_, payload)
-    local data = Ext.Json.Parse(payload)
+VoteAnswers.Channels.PlayerVote:SetHandler(function(data, user)
     local vote = activeVotes[data.instanceId]
     if not vote then
         return -- vote already resolved or unknown instance; ignore late/duplicate votes
@@ -148,11 +185,11 @@ function VoteAnswers.ResolveVote(instanceId)
 
     local winningLineIndex = best and best.lineIndex or vote.lines[1].index
 
-    Ext.Net.BroadcastMessage(VoteAnswers.Channels.VoteResultBroadcast, Ext.Json.Stringify({
+    VoteAnswers.Channels.VoteResult:Broadcast({
         instanceId = instanceId,
         rolls = rolls,
         winningLineIndex = winningLineIndex,
-    }))
+    })
 
     VoteAnswers.ApplyWinningLine(instanceId, winningLineIndex)
 end
