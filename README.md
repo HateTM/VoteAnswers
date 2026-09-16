@@ -68,10 +68,19 @@ API BG3SE для неё — стабильная цель, и часть код�
   `:SetHandler`), список игроков в диалоге через реальные Osiris-события
   `DialogActorJoined` / `DialogActorLeft` / `DialogEnded`, конвертация
   `peerId -> userId` (`peerId + 1`).
-- **Не решено (текст+индекс реплик и принудительный выбор)**: Osiris отдаёт
-  только грубые диалоговые события — `DialogStarted`, `DialogEnded`,
-  `DialogActorJoined`, `DialogRollResult` — но **не** список реплик открытого
-  узла и не способ выбрать конкретную. Реплики — узлы `TagQuestion`,
+- **Не решено, проверено исчерпывающе (текст+индекс реплик и принудительный
+  выбор)**: просмотрен полный официальный список всех 493 Osiris Calls
+  (docs.baldursgate3.game, Category:Osiris_Calls) — диалоговых среди них
+  только `ClearDialogTag`, `DialogRequestStop`,
+  `DialogRequestStopForDialog`, `DialogSetTeleportPartyOnEnded`,
+  `DialogSetTeleportPartyToLevelOnEnded`,
+  `DialogSetVariableTranslatedString`, `DebugDialogSkillCheck`,
+  `SetHasDialog`, `SetHasOsirisDialog`, `SetEntityEventDialog`,
+  `SetDualEntityEventDialog` — и ни один не читает список реплик и не
+  выбирает конкретную. Вместе с событиями (`DialogStarted`, `DialogEnded`,
+  `DialogActorJoined`, `DialogRollResult`) это закрывает вопрос
+  окончательно: **через Osiris этого сделать нельзя**, не только «не нашли
+  в документации». Реплики — узлы `TagQuestion`,
   которые рендерит клиентский UI, а не Osiris.
 - **Подтверждённый путь дальше**: у bg3se есть настоящий (хоть и скупо
   задокументированный) `Ext.UI` — например, рабочий паттерн
