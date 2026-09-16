@@ -77,11 +77,21 @@ API BG3SE для неё — стабильная цель, и часть код�
   `DialogSetVariableTranslatedString`, `DebugDialogSkillCheck`,
   `SetHasDialog`, `SetHasOsirisDialog`, `SetEntityEventDialog`,
   `SetDualEntityEventDialog` — и ни один не читает список реплик и не
-  выбирает конкретную. Вместе с событиями (`DialogStarted`, `DialogEnded`,
-  `DialogActorJoined`, `DialogRollResult`) это закрывает вопрос
-  окончательно: **через Osiris этого сделать нельзя**, не только «не нашли
-  в документации». Реплики — узлы `TagQuestion`,
-  которые рендерит клиентский UI, а не Osiris.
+  выбирает конкретную. Дополнительно просмотрен и полный список **Osiris
+  Events** (диалоговые: `DialogStarted/Ended`,
+  `DialogActorJoined/JoinFailed/Left`, `DialogStartRequested`,
+  `DialogForceStopping`, `DialogRequestFailed`, `DialogRollResult`,
+  `DialogAttackRequested`, `ActorSpeakerIndexChanged`,
+  `InstanceDialogChanged`, `NestedDialogPlayed`, `AutomatedDialog*`,
+  `FlagSet`/`FlagCleared`, `DialogueCapabilityChanged`,
+  `TimelineScreenFadeStarted`, `RollResult`) — ближе всего
+  `ActorSpeakerIndexChanged` (чья очередь говорить, не текст реплик) и
+  `FlagSet`/`FlagCleared` (флаг диалога меняется уже *после* сделанного
+  выбора, а не позволяет прочитать варианты заранее). И там ничего
+  подходящего нет. Это закрывает вопрос окончательно и по Calls, и по
+  Events: **через Osiris этого сделать нельзя**, не только «не нашли в
+  документации». Реплики — узлы `TagQuestion`, которые рендерит клиентский
+  UI, а не Osiris.
 - **Подтверждённый путь дальше**: у bg3se есть настоящий (хоть и скупо
   задокументированный) `Ext.UI` — например, рабочий паттерн
   `Ext.UI.GetRoot():Find("ContentRoot"):VisualChild(1)` для обхода дерева
