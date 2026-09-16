@@ -10,29 +10,39 @@
 --      by re-roll, exactly like Solasta's shared dialogue checks.
 --   5. The winning line index is fed back into the vanilla dialogue system.
 --
--- KNOWN OPEN PROBLEM (confirmed by research, patch 8 / current bg3se docs):
---   Osiris only exposes coarse dialogue events -- DialogStarted(dialog,
---   instanceID), DialogEnded, DialogActorJoined(dialog, instanceID, actor,
---   speakerIndex), DialogActorLeft, DialogRollResult(character, success,
---   dialog, isDetectThoughts, criticality).
+-- KNOWN OPEN PROBLEM -- CLOSED OFF at the Osiris level (checked exhaustively,
+-- not just "not found by search"): both official Osiris intrinsic-function
+-- listings from docs.baldursgate3.game have now been reviewed in full.
 --
---   This is now checked exhaustively, not just "not found by search": the
---   official Category:Osiris Calls listing (docs.baldursgate3.game) has 493
---   entries total, and every one of them has been reviewed. The only
---   dialogue-related Calls that exist are ClearDialogTag, DialogRequestStop,
---   DialogRequestStopForDialog, DialogSetTeleportPartyOnEnded,
---   DialogSetTeleportPartyToLevelOnEnded, DialogSetVariableTranslatedString,
---   DebugDialogSkillCheck, SetHasDialog, SetHasOsirisDialog,
---   SetEntityEventDialog, SetDualEntityEventDialog -- none of which reads a
---   node's reply line text/index or force-selects one.
---   (DialogSetVariableTranslatedString substitutes a text variable into a
---   line, e.g. a name; ClearDialogTag/SetTag affect whether a TagQuestion
---   node is available at all, not which available option gets picked.)
+--   * Category:Osiris Calls (493 entries, all reviewed). The only
+--     dialogue-related ones: ClearDialogTag, DialogRequestStop,
+--     DialogRequestStopForDialog, DialogSetTeleportPartyOnEnded,
+--     DialogSetTeleportPartyToLevelOnEnded, DialogSetVariableTranslatedString,
+--     DebugDialogSkillCheck, SetHasDialog, SetHasOsirisDialog,
+--     SetEntityEventDialog, SetDualEntityEventDialog. None reads a node's
+--     reply line text/index or force-selects one.
+--     (DialogSetVariableTranslatedString substitutes a text variable into a
+--     line, e.g. a name; ClearDialogTag/SetTag affect whether a TagQuestion
+--     node is available at all, not which available option gets picked.)
+--   * Osiris Events (full community-compiled list, all reviewed). Dialogue
+--     ones: DialogStarted, DialogEnded, DialogActorJoined/JoinFailed/Left,
+--     DialogStartRequested, DialogForceStopping, DialogRequestFailed,
+--     DialogRollResult, DialogAttackRequested, ActorSpeakerIndexChanged,
+--     InstanceDialogChanged, NestedDialogPlayed, AutomatedDialog*,
+--     FlagSet/FlagCleared(flag, speaker, dialogInstance),
+--     DialogueCapabilityChanged, TimelineScreenFadeStarted, RollResult. The
+--     closest near-misses: ActorSpeakerIndexChanged only reports whose turn
+--     it is to speak in a group conversation, not reply text; FlagSet/
+--     FlagCleared report a dialogue flag changing (the mechanism that gates
+--     TagQuestion availability) as a side effect of a choice already made,
+--     not a way to read the option list or choose beforehand. None of these
+--     hands you reply text/index either.
 --
---   Conclusion: there is definitively no Osiris-level way to do this.
---   Player reply options are TagQuestion nodes rendered by the client-side
---   dialogue UI, not surfaced through Osiris at all -- the only remaining
---   avenue is client-side UI introspection (see below).
+--   Conclusion: there is definitively no Osiris-level way to do this, on
+--   either the Calls or the Events side. Player reply options are
+--   TagQuestion nodes rendered by the client-side dialogue UI, not
+--   surfaced through Osiris at all -- the only remaining avenue is
+--   client-side UI introspection (see below).
 --
 --   The confirmed path forward is client-side UI introspection: bg3se does
 --   have a real, documented (if sparsely) Ext.UI namespace -- e.g.
