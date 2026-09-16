@@ -14,11 +14,25 @@
 --   Osiris only exposes coarse dialogue events -- DialogStarted(dialog,
 --   instanceID), DialogEnded, DialogActorJoined(dialog, instanceID, actor,
 --   speakerIndex), DialogActorLeft, DialogRollResult(character, success,
---   dialog, isDetectThoughts, criticality). There is NO documented Osiris
---   event or Lua call that hands you the list of selectable player lines
---   (text + index) for the node currently open, and none that lets you
---   force-select a specific one. Player reply options are TagQuestion nodes
---   rendered by the client-side dialogue UI, not surfaced through Osiris.
+--   dialog, isDetectThoughts, criticality).
+--
+--   This is now checked exhaustively, not just "not found by search": the
+--   official Category:Osiris Calls listing (docs.baldursgate3.game) has 493
+--   entries total, and every one of them has been reviewed. The only
+--   dialogue-related Calls that exist are ClearDialogTag, DialogRequestStop,
+--   DialogRequestStopForDialog, DialogSetTeleportPartyOnEnded,
+--   DialogSetTeleportPartyToLevelOnEnded, DialogSetVariableTranslatedString,
+--   DebugDialogSkillCheck, SetHasDialog, SetHasOsirisDialog,
+--   SetEntityEventDialog, SetDualEntityEventDialog -- none of which reads a
+--   node's reply line text/index or force-selects one.
+--   (DialogSetVariableTranslatedString substitutes a text variable into a
+--   line, e.g. a name; ClearDialogTag/SetTag affect whether a TagQuestion
+--   node is available at all, not which available option gets picked.)
+--
+--   Conclusion: there is definitively no Osiris-level way to do this.
+--   Player reply options are TagQuestion nodes rendered by the client-side
+--   dialogue UI, not surfaced through Osiris at all -- the only remaining
+--   avenue is client-side UI introspection (see below).
 --
 --   The confirmed path forward is client-side UI introspection: bg3se does
 --   have a real, documented (if sparsely) Ext.UI namespace -- e.g.
