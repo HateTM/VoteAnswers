@@ -11,8 +11,9 @@
 --   5. The winning line index is fed back into the vanilla dialogue system.
 --
 -- KNOWN OPEN PROBLEM -- CLOSED OFF at the Osiris level (checked exhaustively,
--- not just "not found by search"): both official Osiris intrinsic-function
--- listings from docs.baldursgate3.game have now been reviewed in full.
+-- not just "not found by search"): all three official Osiris intrinsic-
+-- function listings from docs.baldursgate3.game have now been reviewed in
+-- full (Calls, Events, and Queries).
 --
 --   * Category:Osiris Calls (493 entries, all reviewed). The only
 --     dialogue-related ones: ClearDialogTag, DialogRequestStop,
@@ -37,12 +38,21 @@
 --     TagQuestion availability) as a side effect of a choice already made,
 --     not a way to read the option list or choose beforehand. None of these
 --     hands you reply text/index either.
+--   * Osiris Queries (387 entries, all reviewed). Dialogue-related:
+--     DialogIsCrimeDialog, DialogRemoveActorFromDialog, GetHasOsirisDialog,
+--     IsSpeakerReserved, plus generic GetFlagName/GetFlagDescription (story
+--     flags in general, not reply text) and ResolveTranslatedString
+--     (resolves an already-known TranslatedString handle to text -- useful
+--     as a utility if a handle is ever obtained some other way, but does
+--     not itself expose a node's option list). None of these reads or
+--     selects a reply line either.
 --
 --   Conclusion: there is definitively no Osiris-level way to do this, on
---   either the Calls or the Events side. Player reply options are
---   TagQuestion nodes rendered by the client-side dialogue UI, not
---   surfaced through Osiris at all -- the only remaining avenue is
---   client-side UI introspection (see below).
+--   the Calls, Events, or Queries side -- the full intrinsic-function
+--   surface has been checked. Player reply options are TagQuestion nodes
+--   rendered by the client-side dialogue UI, not surfaced through Osiris
+--   at all -- the only remaining avenue is client-side UI introspection
+--   (see below).
 --
 --   The confirmed path forward is client-side UI introspection: bg3se does
 --   have a real, documented (if sparsely) Ext.UI namespace -- e.g.
