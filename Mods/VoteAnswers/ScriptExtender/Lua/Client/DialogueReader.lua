@@ -33,6 +33,10 @@
 VoteAnswers = VoteAnswers or {}
 
 --- Walks to the live Answers array for the currently open dialogue.
+--- Tries the confirmed .Data.Dialogues[N] path first, then falls back to
+--- .CurrentSpeakerCharacter.PlayerCharacterProperties.ActiveDialogue.Answers
+--- (found via the KEN Noesis debugger's search log, 2026-09-17), which
+--- doesn't require guessing a Dialogues index.
 --- @param dialogueIndex number|nil which entry in .Data.Dialogues to use (default 2, matching the confirmed screenshot)
 --- @return table|nil answers, string|nil error
 function VoteAnswers.GetLiveAnswers(dialogueIndex)
@@ -53,11 +57,48 @@ function VoteAnswers.GetLiveAnswers(dialogueIndex)
     local ok2, answers = pcall(function()
         return dialogueWidget:Child(1).Data.Dialogues[dialogueIndex].Answers
     end)
-    if not ok2 or answers == nil then
-        return nil, "Child(1).Data.Dialogues[" .. dialogueIndex .. "].Answers not present"
+    if ok2 and answers ~= nil then
+        return answers, nil
     end
 
-    return answers, nil
+    local ok3, fallbackAnswers = pcall(function()
+        return dialogueWidget:Child(1).CurrentSpeakerCharacter.PlayerCharacterProperties.ActiveDialogue.Answers
+    end)
+    if ok3 and fallbackAnswers ~= nil then
+        return fallbackAnswers, nil
+    end
+
+    return nil, "Child(1).Data.Dialogues[" .. dialogueIndex .. "].Answers not present, "
+        .. "and CurrentSpeakerCharacter.PlayerCharacterProperties.ActiveDialogue.Answers fallback also not present"
+end
+
+--- Returns the ActiveDialogue.LocalHighlightedAnswer object -- a single
+--- VMDialogueAnswer representing whichever reply is currently highlighted
+--- (found via the KEN Noesis debugger's search log, 2026-09-17). Separate
+--- from the Answers array, so its own pairs() dump might turn up a
+--- selection method not visible on array entries.
+--- @return userdata|nil answer, string|nil error
+function VoteAnswers.GetHighlightedAnswer()
+    local root = Ext.UI.GetRoot()
+    if not root then
+        return nil, "Ext.UI.GetRoot() returned nothing"
+    end
+
+    local ok, dialogueWidget = pcall(function()
+        return root:Find("ContentRoot"):FindChildWithName("Dialogue")
+    end)
+    if not ok or dialogueWidget == nil then
+        return nil, "FindChildWithName('Dialogue') did not match anything"
+    end
+
+    local ok2, answer = pcall(function()
+        return dialogueWidget:Child(1).CurrentSpeakerCharacter.PlayerCharacterProperties.ActiveDialogue.LocalHighlightedAnswer
+    end)
+    if not ok2 or answer == nil then
+        return nil, "CurrentSpeakerCharacter.PlayerCharacterProperties.ActiveDialogue.LocalHighlightedAnswer not present"
+    end
+
+    return answer, nil
 end
 
 --- Reads the current reply lines as {index, text} pairs, in the same shape
@@ -110,7 +151,29 @@ function VoteAnswers.DumpAnswerKeys(answerNumber, dialogueIndex)
     end
 end
 
--- Console commands: `!votelines` / `!voteanswerkeys [answerNumber] [dialogueIndex]`
+--- Diagnostic: enumerates every key on ActiveDialogue.LocalHighlightedAnswer
+--- (see VoteAnswers.GetHighlightedAnswer), the same way DumpAnswerKeys()
+--- does for an Answers[] entry -- a second candidate object to check for a
+--- selection method.
+function VoteAnswers.DumpHighlightedAnswerKeys()
+    local answer, err = VoteAnswers.GetHighlightedAnswer()
+    if not answer then
+        Ext.Utils.Print("[VoteAnswers] DumpHighlightedAnswerKeys failed: " .. tostring(err))
+        return
+    end
+
+    Ext.Utils.Print("[VoteAnswers] Keys on LocalHighlightedAnswer:")
+    local ok = pcall(function()
+        for key, value in pairs(answer) do
+            Ext.Utils.Print(string.format("  %s : %s", tostring(key), type(value)))
+        end
+    end)
+    if not ok then
+        Ext.Utils.Print("[VoteAnswers]   pairs() failed on this object -- it may be a userdata proxy that doesn't support iteration.")
+    end
+end
+
+-- Console commands: `!votelines` / `!voteanswerkeys [answerNumber] [dialogueIndex]` / `!votehighlighted`
 if Ext.RegisterConsoleCommand then
     Ext.RegisterConsoleCommand("votelines", function(_, dialogueIndex)
         local lines = VoteAnswers.ReadDialogueLines(dialogueIndex and tonumber(dialogueIndex) or nil)
@@ -126,5 +189,9 @@ if Ext.RegisterConsoleCommand then
             answerNumber and tonumber(answerNumber) or nil,
             dialogueIndex and tonumber(dialogueIndex) or nil
         )
+    end)
+
+    Ext.RegisterConsoleCommand("votehighlighted", function(_)
+        VoteAnswers.DumpHighlightedAnswerKeys()
     end)
 end
