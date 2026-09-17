@@ -54,26 +54,40 @@
 --   at all -- the only remaining avenue is client-side UI introspection
 --   (see below).
 --
---   The confirmed path forward is client-side UI introspection: bg3se does
---   have a real, documented (if sparsely) Ext.UI namespace -- e.g.
---   Ext.UI.GetRoot():Find("ContentRoot"):VisualChild(1) is a real, working
---   call pattern for walking the Noesis visual tree, client-side only.
---   What is NOT yet confirmed is the specific element name(s)/viewmodel
---   properties behind the dialogue reply buttons -- that has to be found by
---   running Client/UIExplore.lua's VoteAnswers.DumpUITree() (or the
---   "!votedump" console command it registers) while a real multi-option
---   dialogue is open, and reading the resulting tree dump for the node that
---   holds the reply text/buttons.
+--   READING is now solved (confirmed live in-game via the KEN Noesis
+--   debugger, 2026-09-17): Ext.UI:GetRoot():Find('ContentRoot')
+--   :FindChildWithName('Dialogue'):Child(1).Data.Dialogues[N].Answers is a
+--   real, working array of gui::VMDialogueAnswer, each with a .BodyText
+--   property holding the exact reply text ("Можно тебя поцеловать?" etc.),
+--   plus AnswerIdx, Enabled, BoundEvent (e.g. "UISelectSlot1"), and --
+--   notably -- PollResultIsMostVoted/PollResultNumVotes/PollResultPercent,
+--   confirming BG3 already has a native per-answer vote-tally data shape
+--   (currently unexercised/zero in solo testing, but the fields are real).
+--   See Client/DialogueReader.lua: VoteAnswers.ReadDialogueLines() /
+--   VoteAnswers.GetLiveAnswers() implement this, client-side only.
+--
+--   SELECTING is still open. Each answer's .BoundEvent is a plain string
+--   ("UISelectSlot1", presumably "UISelectSlot2"/"3" for the others), but
+--   neither the Dialogue root widget nor a VMDialogueAnswer showed an
+--   obvious Command/Execute in the KEN debugger's *property* panel -- that
+--   panel may simply not list methods. Client/DialogueReader.lua's
+--   VoteAnswers.DumpAnswerKeys() (also "!voteanswerkeys" console command)
+--   enumerates every key via pairs(), including methods the property panel
+--   wouldn't show, specifically to find the real selection mechanism
+--   in-game. Once found (a method to call, or a way to fire the
+--   BoundEvent-named event), wire it into
+--   VoteAnswers.ApplyWinningLine(instanceId, lineIndex) below.
 --
 --   VoteAnswers.OnDialogOptionsAvailable / VoteAnswers.ApplyWinningLine
---   below are the integration points for whatever that dump turns up: once
---   the dialogue reply UIObject is identified, a client-side listener on it
---   should call VoteAnswers.OnDialogOptionsAvailable(...) with the real
---   line texts, and VoteAnswers.ApplyWinningLine(...) should drive that same
---   UIObject's selection (or an underlying command binding) to pick the
---   winning line. Neither is wired to a real game hook yet -- the
---   vote/roll/broadcast logic itself is unaffected by this and can be
---   exercised standalone once a UI hook exists.
+--   below remain the integration points: a client-side listener (not yet
+--   written -- needs a way to detect *when* a dialogue with multiple
+--   answers opens, e.g. via My Assistant KEN's MenuOpened/UIOpened events,
+--   see Client/KENIntegration.lua) should call
+--   VoteAnswers.OnDialogOptionsAvailable(...) with VoteAnswers
+--   .ReadDialogueLines()'s output, and VoteAnswers.ApplyWinningLine(...)
+--   should invoke whatever DumpAnswerKeys() turns up. The vote/roll/
+--   broadcast logic itself does not depend on either and can be exercised
+--   standalone already.
 
 VoteAnswers = VoteAnswers or {}
 

@@ -40,6 +40,7 @@ Mods/VoteAnswers/
       Server/DialogVote.lua         — сбор голосов, броски, разрешение
       Client/VoteUI.lua             — IMGUI-оверлей голосования и результатов
       Client/UIExplore.lua          — дамп дерева Noesis UI (свой, без зависимостей)
+      Client/DialogueReader.lua     — чтение текста реплик (подтверждённый путь) + поиск команды выбора
       Client/KENIntegration.lua     — опциональная интеграция с "My Assistant KEN"
 ```
 
@@ -57,7 +58,7 @@ Mods/VoteAnswers/
    показывает броски и победителя, затем сервер вызывает
    `VoteAnswers.ApplyWinningLine(instanceId, winningLineIndex)`.
 
-## Статус: известное нерешённое препятствие
+## Статус: чтение реплик решено, выбор — последний открытый вопрос
 
 Игра сейчас на финальном патче 8 (дальнейших обновлений не будет), поэтому
 API BG3SE для неё — стабильная цель, и часть кода уже сверена с актуальной
@@ -97,53 +98,60 @@ API BG3SE для неё — стабильная цель, и часть код�
   **через Osiris этого сделать нельзя**, не только «не нашли в
   документации». Реплики — узлы `TagQuestion`, которые рендерит клиентский
   UI, а не Osiris.
-- **Подтверждённый путь дальше**: у bg3se есть настоящий (хоть и скупо
-  задокументированный) `Ext.UI` — например, рабочий паттерн
-  `Ext.UI.GetRoot():Find("ContentRoot"):VisualChild(1)` для обхода дерева
-  Noesis-интерфейса (только на клиенте).
-- **Конкретная зацепка**: страница мода **My Assistant KEN**
-  (https://www.nexusmods.com/baldursgate3/mods/22530) — библиотеки
-  сообщества именно для поиска/мониторинга Noesis-объектов — в собственном
-  примере пути называет диалоговый узел напрямую:
-  `Ext.UI:GetRoot():Find('ContentRoot'):FindChildWithName('Dialog_box')`.
-  Там же подтверждён паттерн вызова UI-команд через
-  `obj.DataContext.<Command>:Execute()` (на примере `ContinueCommand`) —
-  вероятно, тем же способом можно будет выбрать конкретную реплику. Событие
-  `Ext.ModEvents.KEN_Helper["MenuOpened"]` явно триггерится в т.ч. на
-  диалог ("cut scenes and dialog").
+- **ЧТЕНИЕ реплик — решено и подтверждено вживую** (в игре, через KEN
+  Noesis debugger, скриншот от 17.09.2026):
 
-  Это по-прежнему не точное имя/свойство того, что нужно нам (`Dialog_box`
-  — из документации KEN, не из нашего собственного теста), но это
-  конкретная стартовая точка для поиска вместо дампа с нуля.
+  ```
+  Ext.UI:GetRoot():Find('ContentRoot'):FindChildWithName('Dialogue')
+      :Child(1).Data.Dialogues[N].Answers
+  ```
 
-**Инструменты для дальнейшего поиска (оба уже в моде):**
+  Это рабочий, живой путь к массиву `gui::VMDialogueAnswer`. У каждого
+  элемента подтверждены поля:
+  - `BodyText` — сам текст реплики (например, `"Можно тебя поцеловать?"`);
+  - `AnswerIdx`, `Enabled`;
+  - `BoundEvent` — имя UI-события выбора (`"UISelectSlot1"`, судя по
+    паттерну — `"UISelectSlot2"`/`"3"` для остальных вариантов);
+  - `PollResultIsMostVoted` / `PollResultNumVotes` / `PollResultPercent` —
+    подтверждает, что у игры **уже есть встроенная структура данных под
+    голосование по репликам** на уровне каждого варианта (в соло-тесте
+    везде нули, но сами поля реальны);
+  - `CtxAnswer.Text.Params[i]` — текст описания проверки/DC, если есть.
 
-- `Client/UIExplore.lua` — свой дамп дерева, без зависимостей:
-  `VoteAnswers.DumpUITree(findName, maxDepth)` / консольная команда
-  `!votedump`.
-- `Client/KENIntegration.lua` — опциональная интеграция с My Assistant
-  KEN (активна только если та библиотека установлена и включена как
-  зависимость мода); сейчас логирует `MenuOpened`/`MenuClosed` и содержит
-  закомментированный шаблон `ResolveAndMonitor(...)` для узла
-  `Dialog_box`, готовый к раскомментированию после проверки в игре.
+  Реализовано в `Client/DialogueReader.lua`:
+  `VoteAnswers.ReadDialogueLines()` / `VoteAnswers.GetLiveAnswers()`
+  (плюс консольная команда `!votelines`).
 
-План проверки в игре:
+- **ВЫБОР реплики — последний открытый вопрос.** `BoundEvent` — обычная
+  строка, а не объект-команда. Ни у корневого виджета `Dialogue`, ни у
+  самого `VMDialogueAnswer` в панели свойств KEN-дебаггера не нашлось
+  явного `Command`/`Execute` — но эта панель, похоже, показывает только
+  свойства, а не методы. Для поиска реального механизма выбора добавлена
+  `VoteAnswers.DumpAnswerKeys()` (`!voteanswerkeys [answerNumber]
+  [dialogueIndex]` в консоли) — она перебирает объект ответа через
+  `pairs()`, что покажет и методы тоже, не только то, что видно в UI
+  KEN-дебаггера.
 
-1. Установить **My Assistant KEN** + **KEN Noesis debugger** как
-   зависимости мода (рекомендуется — отладчик сильно быстрее, чем искать
-   вручную по дампу).
-2. Открыть диалог с несколькими репликами, найти в KEN-дебаггере узел
-   реплик и скопировать его путь (или, без KEN, вызвать `!votedump` и
-   поискать в дампе).
-3. Проверить, действительно ли путь `Find('ContentRoot'):FindChildWithName('Dialog_box')`
-   (или похожий) ведёт к нужному узлу, прочитать текст реплик из
-   `.DataContext`, найти команду для выбора конкретной реплики.
-4. Раскомментировать и доработать шаблон в `Client/KENIntegration.lua`,
-   подключить найденное к `VoteAnswers.OnDialogOptionsAvailable` /
-   `VoteAnswers.ApplyWinningLine` в `Server/DialogVote.lua` (подробности и
-   запасные варианты — в комментарии в начале этого файла: вопрос в
-   Discord/issues bg3se, либо, в крайнем случае, нативное расширение bg3se
-   на C++).
+**Инструменты в моде для дальнейшего поиска:**
+
+- `Client/UIExplore.lua` — общий дамп дерева Noesis: `VoteAnswers.DumpUITree(findName, maxDepth)` / `!votedump`.
+- `Client/DialogueReader.lua` — чтение реплик (`!votelines`) и поиск ключей/методов ответа (`!voteanswerkeys`).
+- `Client/KENIntegration.lua` — опциональная интеграция с My Assistant KEN, логирует `MenuOpened`/`MenuClosed`.
+
+План проверки в игре (осталось только это):
+
+1. Открыть диалог с несколькими репликами, в консоли SE вызвать
+   `!voteanswerkeys 1` (или `VoteAnswers.DumpAnswerKeys(1)`), посмотреть
+   вывод в логе — там должны появиться все ключи объекта ответа, включая
+   методы, которых не было видно в панели свойств KEN.
+2. Найти среди них что-то вроде `Select`/`Execute`/`Click`/`Invoke` или
+   способ поднять событие с именем из `BoundEvent`.
+3. Подключить найденный вызов в `VoteAnswers.ApplyWinningLine` в
+   `Server/DialogVote.lua`, и повесить клиентский слушатель открытия
+   диалога (например, через `MenuOpened`/`UIOpened` в
+   `Client/KENIntegration.lua`), который читает реплики через
+   `VoteAnswers.ReadDialogueLines()` и зовёт
+   `VoteAnswers.OnDialogOptionsAvailable(...)`.
 
 Оставшиеся мелкие TODO (фильтрация NPC vs игроков в
 `GetConnectedPlayerUserIds`, `LocalPlayerUserId()` на клиенте, точная
